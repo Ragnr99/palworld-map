@@ -1,8 +1,0 @@
-[
-  { "name": "Lamball", "x": -120000, "y": -150000, "meta": { "level": "1-3", "time": "day" } },
-  { "name": "Cattiva", "x": -95000, "y": -140000, "meta": { "level": "1-4", "time": "day" } },
-  { "name": "Chikipi", "x": -160000, "y": -110000, "meta": { "level": "1-2", "time": "any" } },
-  { "name": "Foxparks", "x": -60000, "y": -200000, "meta": { "level": "3-6", "time": "night" } },
-  { "name": "Pengullet", "x": 20000, "y": 120000, "meta": { "level": "8-12", "time": "any" } },
-  { "name": "Direhowl", "x": 180000, "y": 40000, "meta": { "level": "10-14", "time": "night" } }
-]
