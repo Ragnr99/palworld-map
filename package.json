@@ -1,0 +1,19 @@
+{
+  "name": "palworld-map",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Interactive Palworld map with toggleable layers (spawns, NPCs, fast travel, chests, eggs, effigies, dungeons, ore).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
