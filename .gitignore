@@ -7,3 +7,9 @@ dist
 # Large base map tiles / raw extracted assets (keep the repo light)
 public/map/tiles/
 *.pak
+
+# scraping/extraction intermediates
+*.webp
+paldb_map.*
+map_data.js
+validate.png
