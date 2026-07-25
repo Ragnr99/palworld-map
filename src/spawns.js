@@ -5,6 +5,7 @@ import { savToLatLng } from './coords.js';
 // the game's DT_PaldexDistributionData. spawns.json (~2MB) is loaded lazily the
 // first time a Pal is picked, so it never weighs on the base map load.
 
+const BASE = import.meta.env.BASE_URL;
 let cache = null; // { PalName: { d:[[x,y]..], n:[[x,y]..] } }
 const layer = L.layerGroup();
 let current = null;
@@ -17,14 +18,14 @@ export function spawnLayer() {
 }
 
 export async function loadPalIndex() {
-  const res = await fetch('/data/spawn_index.json');
+  const res = await fetch(`${BASE}data/spawn_index.json`);
   return res.ok ? res.json() : [];
 }
 
 async function ensureData(status) {
   if (cache) return cache;
   if (status) status.textContent = 'Loading spawn data…';
-  const res = await fetch('/data/spawns.json');
+  const res = await fetch(`${BASE}data/spawns.json`);
   cache = res.ok ? await res.json() : {};
   if (status) status.textContent = '';
   return cache;

@@ -19,13 +19,17 @@ const map = L.map('map', {
   attributionControl: false,
 });
 
+// Base URL prefix so assets resolve whether served at the domain root (dev) or
+// under a sub-path (embedded in the portfolio hub at /palworld/).
+const BASE = import.meta.env.BASE_URL;
+
 const imageBounds = L.latLngBounds(IMAGE_BOUNDS[0], IMAGE_BOUNDS[1]);
 const baseImg = new Image();
-baseImg.onload = () => L.imageOverlay('/map/base.png', imageBounds).addTo(map);
+baseImg.onload = () => L.imageOverlay(`${BASE}map/base.png`, imageBounds).addTo(map);
 baseImg.onerror = () => L.rectangle(imageBounds, {
   color: '#334155', weight: 1, fillColor: '#0f172a', fillOpacity: 1,
 }).addTo(map);
-baseImg.src = '/map/base.png';
+baseImg.src = `${BASE}map/base.png`;
 map.fitBounds(imageBounds);
 
 // ---- Coordinate readout ----------------------------------------------------
@@ -112,7 +116,7 @@ async function loadLayer(cfg) {
   const cluster = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 2 });
   const markers = [];
   try {
-    const res = await fetch(`/data/${cfg.file}`);
+    const res = await fetch(`${BASE}data/${cfg.file}`);
     if (res.ok) {
       const arr = await res.json();
       for (const d of arr) {
