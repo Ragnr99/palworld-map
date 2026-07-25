@@ -5,7 +5,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import './style.css';
 
-import { savToLatLng, latLngToSav, WORLD_BOUNDS_SAV } from './coords.js';
+import { savToLatLng, latLngToSav, savToPaldex, IMAGE_BOUNDS } from './coords.js';
 import { LAYERS } from './layers.js';
 import { isCalibrationMode, addCalibrationLayer } from './calibration.js';
 
@@ -20,13 +20,11 @@ const map = L.map('map', {
   attributionControl: false,
 });
 
-// Base image overlay. Positioned using the two world corner points so that
-// raw game coordinates land in the right spot. Drop the real extracted base
-// map texture at public/map/base.png and it will slot straight in; until then
-// a placeholder grid is shown so markers are still visible.
-const nw = savToLatLng(WORLD_BOUNDS_SAV.bottomLeft.x, WORLD_BOUNDS_SAV.topRight.y);
-const se = savToLatLng(WORLD_BOUNDS_SAV.topRight.x, WORLD_BOUNDS_SAV.bottomLeft.y);
-const imageBounds = L.latLngBounds(nw, se);
+// Base image overlay. Bounds come straight from the texture's world bounds
+// (see coords.js), so raw game coordinates land in the right spot. The current
+// base.png is the map8 texture (stitched from paldb tiles) covering the full
+// DLC-inclusive world.
+const imageBounds = L.latLngBounds(IMAGE_BOUNDS[0], IMAGE_BOUNDS[1]);
 
 const baseImg = new Image();
 baseImg.onload = () => {
@@ -46,7 +44,10 @@ map.fitBounds(imageBounds);
 const readout = document.getElementById('coord-readout');
 map.on('mousemove', (e) => {
   const sav = latLngToSav(e.latlng.lat, e.latlng.lng);
-  readout.textContent = `world x: ${Math.round(sav.x)}  y: ${Math.round(sav.y)}`;
+  const p = savToPaldex(sav.x, sav.y);
+  readout.textContent =
+    `world x: ${Math.round(sav.x)}  y: ${Math.round(sav.y)}   ·   ` +
+    `map ${Math.round(p.x)}, ${Math.round(p.y)}`;
 });
 
 // ---- Layers ----------------------------------------------------------------

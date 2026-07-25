@@ -1,56 +1,72 @@
 // Palworld coordinate conversion.
 //
-// The game stores actor positions in .sav / level files as world coordinates
-// in centimeters. The in-game Paldex map shows a scaled, translated, axis-
-// flipped version of those. Constants below are the community-verified values
-// from https://github.com/palworldlol/palworld-coord
+// Actors are stored as world ("sav") coordinates in centimeters. The base map
+// texture (paldb's map8, 8192x8192) covers the FULL expanded world including
+// the DLC regions. To place a marker we normalize its sav coords against the
+// texture's world bounds, then map to the Leaflet CRS.Simple plane.
 //
-// sav_to_map:
-//   mapX = (savY - TRANSL_Y) / SCALE
-//   mapY = (savX + TRANSL_X) / SCALE   (axes are flipped on purpose)
+// Bounds and size are the authenticated values from paldb's map_data_en.js and
+// were verified: plotting all 137 fast-travel points and 83 alpha bosses with
+// this transform lands every one on the correct landmass. See coords.test note
+// in the README.
+//
+//   landScapeRealPositionMin: X -1099400, Y -724400
+//   landScapeRealPositionMax: X  349400, Y  724400
+//   minMapTextureBlockSize:   8192 x 8192
+//
+// Orientation (verified against the image):
+//   +savX -> north (up),  +savY -> east (right)
 
-const TRANSL_X = 123888;
-const TRANSL_Y = 158000;
-const SCALE = 459;
-
-// Convert raw world (sav) coords -> in-game Paldex map coords.
-export function savToMap(x, y) {
-  return {
-    x: (y - TRANSL_Y) / SCALE,
-    y: (x + TRANSL_X) / SCALE,
-  };
-}
-
-// Convert in-game Paldex map coords -> raw world (sav) coords.
-export function mapToSav(x, y) {
-  return {
-    x: y * SCALE - TRANSL_X,
-    y: x * SCALE + TRANSL_Y,
-  };
-}
-
-// Leaflet (CRS.Simple) uses [lat, lng]. We treat lng = mapX and lat = -mapY so
-// that north points up on screen. Feed this a {x, y} in raw sav coords and it
-// returns a Leaflet-ready [lat, lng] pair.
-export function savToLatLng(x, y) {
-  const m = savToMap(x, y);
-  return [-m.y, m.x];
-}
-
-// Inverse: a Leaflet [lat, lng] back to raw sav coords (for the hover readout).
-export function latLngToSav(lat, lng) {
-  return mapToSav(lng, -lat);
-}
-
-// Base-game world corners in raw sav coords (cm). These are the SAME points
-// the transform constants above were derived from: they map exactly onto the
-// Paldex square (-1000,-1000)..(1000,1000). Source: palworld-coord DEV.md.
-//   BL sav(-582888,-301000) -> map(-1000,-1000)
-//   TR sav( 335112, 617000) -> map( 1000, 1000)
-// (An earlier draft used the DLC-expanded DT_WorldMapUIData bounds, which do
-// NOT line up with the /459 scale. If/when adding DLC regions, that needs its
-// own overlay and its own calibration, not these numbers.)
-export const WORLD_BOUNDS_SAV = {
-  bottomLeft: { x: -582888.0, y: -301000.0 },
-  topRight: { x: 335112.0, y: 617000.0 },
+export const TEXTURE_BOUNDS_SAV = {
+  min: { x: -1099400, y: -724400 },
+  max: { x: 349400, y: 724400 },
 };
+
+// Logical size of the map coordinate plane (native texture resolution). The
+// base image is stretched to fill this, so swapping in a higher-res texture
+// later needs no code change.
+export const TEXTURE_PX = 8192;
+
+const SPAN_X = TEXTURE_BOUNDS_SAV.max.x - TEXTURE_BOUNDS_SAV.min.x; // 1448800
+const SPAN_Y = TEXTURE_BOUNDS_SAV.max.y - TEXTURE_BOUNDS_SAV.min.y; // 1448800
+
+// Raw world (sav) coords -> normalized 0..1 across the texture.
+export function savToNorm(x, y) {
+  return {
+    nx: (x - TEXTURE_BOUNDS_SAV.min.x) / SPAN_X,
+    ny: (y - TEXTURE_BOUNDS_SAV.min.y) / SPAN_Y,
+  };
+}
+
+// Raw world (sav) coords -> Leaflet [lat, lng] on the CRS.Simple plane.
+// lng runs 0..TEXTURE_PX west->east; lat runs 0..-TEXTURE_PX north->south.
+export function savToLatLng(x, y) {
+  const { nx, ny } = savToNorm(x, y);
+  return [-(1 - nx) * TEXTURE_PX, ny * TEXTURE_PX];
+}
+
+// Inverse: Leaflet [lat, lng] -> raw world (sav) coords (for the hover readout).
+export function latLngToSav(lat, lng) {
+  const nx = 1 + lat / TEXTURE_PX; // lat is <= 0
+  const ny = lng / TEXTURE_PX;
+  return {
+    x: nx * SPAN_X + TEXTURE_BOUNDS_SAV.min.x,
+    y: ny * SPAN_Y + TEXTURE_BOUNDS_SAV.min.y,
+  };
+}
+
+// Image overlay bounds: the texture fills the whole plane.
+//   top-left  (north-west) = [0, 0]
+//   bot-right (south-east) = [-TEXTURE_PX, TEXTURE_PX]
+export const IMAGE_BOUNDS = [
+  [0, 0],
+  [-TEXTURE_PX, TEXTURE_PX],
+];
+
+// --- Optional: base-game Paldex coords (the -1000..1000 grid shown in-game) ---
+// Only valid inside the base-game rectangle; DLC areas fall outside +/-1000.
+// Kept for a human-friendly readout. Source: palworld-coord (perPixel = 459).
+const PALDEX_SCALE = 459;
+export function savToPaldex(x, y) {
+  return { x: (y - 158000) / PALDEX_SCALE, y: (x + 123888) / PALDEX_SCALE };
+}

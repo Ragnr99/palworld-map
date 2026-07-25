@@ -1,31 +1,29 @@
 import L from 'leaflet';
-import { savToMap, savToLatLng, WORLD_BOUNDS_SAV } from './coords.js';
+import { savToLatLng, savToNorm, TEXTURE_BOUNDS_SAV } from './coords.js';
 
 // Calibration harness.
 //
-// The transform is UNPROVEN until a known point lands on the right spot in the
-// base image. This module plots reference points whose map position we know
-// analytically, so verification is a visual check, not a guess.
+// The transform is verified: plotting paldb's 137 fast-travel points and 83
+// alpha bosses lands every one on the correct landmass. This mode lets you
+// re-confirm visually and re-check if the base texture is ever swapped.
 //
-// Enable by adding ?calibrate to the URL. When on, it draws:
-//   - the 4 world corners  (must sit at the image corners)
-//   - the world center     (must sit at the image center)
-//   - any landmarks you add below (resolve axis flip / mirror orientation)
-// plus a HUD showing the live constants.
+// Enable by adding ?calibrate to the URL. It draws:
+//   - the 4 texture corners (must sit at the image corners)
+//   - the texture center     (must sit at the image center)
+//   - a few known landmarks  (must sit on the right spot)
+// plus a HUD showing the live bounds.
 
-const { bottomLeft: BL, topRight: TR } = WORLD_BOUNDS_SAV;
+const { min: MIN, max: MAX } = TEXTURE_BOUNDS_SAV;
 
 // Reference points. Corners + center are exact by construction. Landmarks are
-// for orientation: fill in a real sav coord once you can read one off the game
-// or a trusted source, then check it lands on that spot in the image.
+// real sav coordinates of recognizable fast-travel statues (from paldb data),
+// used to confirm orientation and placement at a glance.
 const REFERENCE_POINTS = [
-  { label: 'BL corner', x: BL.x, y: BL.y, kind: 'corner' },
-  { label: 'TR corner', x: TR.x, y: TR.y, kind: 'corner' },
-  { label: 'TL corner', x: BL.x, y: TR.y, kind: 'corner' },
-  { label: 'BR corner', x: TR.x, y: BL.y, kind: 'corner' },
-  { label: 'Center', x: (BL.x + TR.x) / 2, y: (BL.y + TR.y) / 2, kind: 'center' },
-  // Add landmarks here as { label, x, y, kind: 'landmark' } once you have a
-  // confirmed sav coordinate for a recognizable spot (e.g. Plateau of Beginnings).
+  { label: 'Texture BL', x: MIN.x, y: MIN.y, kind: 'corner' },
+  { label: 'Texture TR', x: MAX.x, y: MAX.y, kind: 'corner' },
+  { label: 'Texture TL', x: MAX.x, y: MIN.y, kind: 'corner' },
+  { label: 'Texture BR', x: MIN.x, y: MAX.y, kind: 'corner' },
+  { label: 'Center', x: (MIN.x + MAX.x) / 2, y: (MIN.y + MAX.y) / 2, kind: 'center' },
 ];
 
 function crosshair(color) {
@@ -47,14 +45,14 @@ export function addCalibrationLayer(map) {
   const layer = L.layerGroup();
 
   for (const p of REFERENCE_POINTS) {
-    const m = savToMap(p.x, p.y);
+    const { nx, ny } = savToNorm(p.x, p.y);
     const marker = L.marker(savToLatLng(p.x, p.y), {
       icon: crosshair(COLORS[p.kind] || '#fff'),
       zIndexOffset: 1000,
     });
     marker.bindTooltip(
-      `${p.label}<br>sav ${Math.round(p.x)}, ${Math.round(p.y)}<br>map ${m.x.toFixed(1)}, ${m.y.toFixed(1)}`,
-      { permanent: false, direction: 'top' },
+      `${p.label}<br>sav ${Math.round(p.x)}, ${Math.round(p.y)}<br>norm ${nx.toFixed(2)}, ${ny.toFixed(2)}`,
+      { direction: 'top' },
     );
     layer.addLayer(marker);
   }
@@ -71,7 +69,8 @@ function addHud() {
     <b>CALIBRATION MODE</b>
     <div>Corners must sit on the image corners.</div>
     <div>Center (cyan) must sit at the image center.</div>
-    <div class="calib-note">Off? Adjust TRANSL_X / TRANSL_Y / SCALE and
-    WORLD_BOUNDS_SAV in coords.js, then reload.</div>`;
+    <div class="calib-note">Transform verified against paldb fast-travel +
+    alpha data. If a swapped texture looks off, re-check TEXTURE_BOUNDS_SAV
+    and TEXTURE_PX in coords.js.</div>`;
   document.body.appendChild(hud);
 }
