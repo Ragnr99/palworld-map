@@ -36,6 +36,35 @@ body {
 
 #map { flex: 1; background: #0f172a; }
 
+/* Search + panels */
+#search, #pal-search {
+  width: 100%; margin-bottom: 14px;
+  background: #0f172a; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); padding: 9px 11px; font-size: 14px;
+}
+#search:focus, #pal-search:focus { outline: none; border-color: var(--accent); }
+#pal-search { margin-bottom: 8px; }
+
+.panel { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+.panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; }
+
+.spawn-opts { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.spawn-opts label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.spawn-opts .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dot.day { background: #38bdf8; } .dot.night { background: #c084fc; }
+.mini { margin-left: auto; background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer; }
+.mini:hover { color: var(--text); }
+
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; background: #0f172a; color: var(--muted); border: 0; padding: 7px; cursor: pointer; font-size: 13px; }
+.seg button.on { background: var(--accent); color: #0b1120; font-weight: 600; }
+
+.collect-btn { margin-top: 8px; width: 100%; background: #0f172a; border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 6px; cursor: pointer; font-size: 12px; }
+.collect-btn:hover { border-color: var(--accent); }
+.pw-marker.collected { opacity: 0.35; filter: grayscale(0.8); }
+
 .layer-row {
   display: flex;
   align-items: center;
