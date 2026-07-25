@@ -7,6 +7,7 @@ import './style.css';
 
 import { savToLatLng, latLngToSav, WORLD_BOUNDS_SAV } from './coords.js';
 import { LAYERS } from './layers.js';
+import { isCalibrationMode, addCalibrationLayer } from './calibration.js';
 
 // ---- Map setup -------------------------------------------------------------
 // CRS.Simple: a flat, non-geographic coordinate plane. Perfect for an image
@@ -119,4 +120,9 @@ async function init() {
   }
 }
 
-init();
+// In calibration mode, skip the data layers and just prove the transform.
+if (isCalibrationMode()) {
+  addCalibrationLayer(map);
+} else {
+  init();
+}

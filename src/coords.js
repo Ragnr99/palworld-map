@@ -42,10 +42,15 @@ export function latLngToSav(lat, lng) {
   return mapToSav(lng, -lat);
 }
 
-// World corners pulled from DT_WorldMapUIData (raw sav coords in cm).
-// Used to position the base map image overlay. Recalibrate these two points
-// once the real extracted base map texture is dropped in.
+// Base-game world corners in raw sav coords (cm). These are the SAME points
+// the transform constants above were derived from: they map exactly onto the
+// Paldex square (-1000,-1000)..(1000,1000). Source: palworld-coord DEV.md.
+//   BL sav(-582888,-301000) -> map(-1000,-1000)
+//   TR sav( 335112, 617000) -> map( 1000, 1000)
+// (An earlier draft used the DLC-expanded DT_WorldMapUIData bounds, which do
+// NOT line up with the /459 scale. If/when adding DLC regions, that needs its
+// own overlay and its own calibration, not these numbers.)
 export const WORLD_BOUNDS_SAV = {
-  bottomLeft: { x: -999940.0, y: -738920.0 },
-  topRight: { x: 447900.0, y: 708920.0 },
+  bottomLeft: { x: -582888.0, y: -301000.0 },
+  topRight: { x: 335112.0, y: 617000.0 },
 };
