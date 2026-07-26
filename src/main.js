@@ -15,9 +15,10 @@ const map = L.map('map', {
   crs: L.CRS.Simple,
   minZoom: -4,
   maxZoom: 4,
-  zoomControl: true,
+  zoomControl: false, // added at top-right below, clear of the mobile menu button
   attributionControl: false,
 });
+L.control.zoom({ position: 'topright' }).addTo(map);
 
 // Base URL prefix so assets resolve whether served at the domain root (dev) or
 // under a sub-path (embedded in the portfolio hub at /palworld/).
@@ -173,6 +174,26 @@ function buildLayers() {
   }
 }
 
+// ---- Mobile drawer ---------------------------------------------------------
+function wireDrawer() {
+  const app = document.getElementById('app');
+  const toggle = document.getElementById('menu-toggle');
+  const backdrop = document.getElementById('backdrop');
+  const setOpen = (open) => {
+    app.classList.toggle('menu-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    backdrop.hidden = !open;
+  };
+  toggle.addEventListener('click', () => setOpen(!app.classList.contains('menu-open')));
+  backdrop.addEventListener('click', () => setOpen(false));
+  // On rotate / resize: drop the drawer state when we're back on a wide layout
+  // (avoids a lingering backdrop), and keep Leaflet's sizing correct.
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) setOpen(false);
+    map.invalidateSize();
+  });
+}
+
 // ---- Controls wiring -------------------------------------------------------
 function wireControls() {
   const search = document.getElementById('search');
@@ -207,6 +228,7 @@ async function initPals() {
 if (isCalibrationMode()) {
   addCalibrationLayer(map);
 } else {
+  wireDrawer();
   wireControls();
   buildLayers();
   initPals();
