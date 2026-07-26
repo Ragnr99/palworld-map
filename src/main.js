@@ -178,6 +178,7 @@ async function initPals() {
     searchEl: document.getElementById('pal-search'),
     dayEl: document.getElementById('spawn-day'),
     nightEl: document.getElementById('spawn-night'),
+    heatEl: document.getElementById('spawn-heat'),
     clearEl: document.getElementById('spawn-clear'),
   });
 }
