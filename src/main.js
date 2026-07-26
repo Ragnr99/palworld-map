@@ -290,6 +290,27 @@ function wireControls() {
   });
 }
 
+// While a spawn heatmap is active, hide the marker clusters so the density
+// reads clearly; restore exactly the ones that were showing when it turns off.
+let heatHidden = null;
+function setMarkersHiddenForHeat(active) {
+  if (active) {
+    if (heatHidden) return; // already hidden
+    heatHidden = [];
+    for (const id in registry) {
+      const e = registry[id];
+      if (e.cluster && e.cluster._map) { heatHidden.push(id); map.removeLayer(e.cluster); }
+    }
+  } else {
+    if (!heatHidden) return;
+    for (const id of heatHidden) {
+      const e = registry[id];
+      if (e && e.cluster) e.cluster.addTo(map);
+    }
+    heatHidden = null;
+  }
+}
+
 async function initPals() {
   const input = document.getElementById('pal-search');
   const list = document.getElementById('pal-list');
@@ -325,6 +346,7 @@ async function initPals() {
     nightEl: document.querySelector('[data-spawn="night"]'),
     heatEl: document.querySelector('[data-spawn="heat"]'),
     clearEl: document.getElementById('spawn-clear'),
+    onHeatmap: setMarkersHiddenForHeat,
   });
 }
 

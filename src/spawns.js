@@ -73,21 +73,25 @@ function drawHeat(map, rec, showDay, showNight) {
 
 // Wire the picker UI. dayEl/nightEl/heatEl are chip <button>s toggled via an
 // `on` class; searchEl is the combobox input that fires 'change' on selection.
-export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, clearEl }) {
+// onHeatmap(active) is called whenever the heatmap turns on/off so the caller
+// can hide/restore the marker layers (a heatmap reads better without them).
+export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, clearEl, onHeatmap = () => {} }) {
   pointsLayer.addTo(map);
   const on = (el) => el.classList.contains('on');
 
   const refresh = async () => {
     clearAll(map);
-    if (!current) { statusEl.textContent = ''; return; }
+    if (!current) { statusEl.textContent = ''; onHeatmap(false); return; }
     await ensureData(statusEl);
     const rec = cache[current];
-    if (!rec) { statusEl.textContent = `No spawn data for ${current}`; return; }
+    if (!rec) { statusEl.textContent = `No spawn data for ${current}`; onHeatmap(false); return; }
     const showDay = on(dayEl), showNight = on(nightEl);
     const n = (showDay ? rec.d.length : 0) + (showNight ? rec.n.length : 0);
-    if (on(heatEl)) drawHeat(map, rec, showDay, showNight);
+    const heat = on(heatEl);
+    if (heat) drawHeat(map, rec, showDay, showNight);
     else drawPoints(rec, showDay, showNight);
-    statusEl.textContent = `${current}: ${n} ${on(heatEl) ? 'heatmap' : 'points'} (day ${rec.d.length} / night ${rec.n.length})`;
+    onHeatmap(heat);
+    statusEl.textContent = `${current}: ${n} ${heat ? 'heatmap' : 'points'} (day ${rec.d.length} / night ${rec.n.length})`;
   };
 
   const toggleChip = (el) => { el.classList.toggle('on'); refresh(); };
@@ -103,6 +107,6 @@ export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, cl
     refresh();
   });
   clearEl.addEventListener('click', () => {
-    current = null; searchEl.value = ''; clearAll(map); statusEl.textContent = '';
+    current = null; searchEl.value = ''; clearAll(map); statusEl.textContent = ''; onHeatmap(false);
   });
 }
