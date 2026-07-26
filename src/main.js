@@ -68,7 +68,7 @@ function saveCollected() {
 }
 
 // ---- Layers ----------------------------------------------------------------
-const registry = {}; // id -> { cfg, cluster, markers:[{marker,data}], loaded, loading }
+const registry = {}; // id -> { cfg, cluster, markers, loaded, loading, enabledSubs:Set, ui }
 
 function makeIcon(color, dim) {
   return L.divIcon({
@@ -104,41 +104,42 @@ function popupEl(cfg, d, marker) {
   return el;
 }
 
+// A category's cluster shows only markers whose sub-type is enabled.
 function populate(entry) {
-  const { cfg, cluster, markers } = entry;
-  cluster.clearLayers();
-  cluster.addLayers(markers.filter((m) => matches(cfg, m.data)).map((m) => m.marker));
+  entry.cluster.clearLayers();
+  entry.cluster.addLayers(
+    entry.markers
+      .filter((m) => matches(entry.cfg, m.data) && entry.enabledSubs.has(m.data.sub))
+      .map((m) => m.marker),
+  );
 }
 
 function refilter() {
   for (const id in registry) {
     const entry = registry[id];
-    if (!entry.loaded || !entry.cluster._map) continue; // not loaded or toggled off
-    populate(entry);
+    if (entry.loaded && entry.cluster && entry.cluster._map) populate(entry);
   }
 }
 
-// Lazily fetch a layer's data and build its markers the first time it's needed.
-// Returns the registry entry once ready. Concurrent calls share one fetch.
-function ensureLoaded(cfg) {
-  let entry = registry[cfg.id];
-  if (entry) return entry.loading || Promise.resolve(entry);
-
-  const cluster = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 2 });
-  entry = registry[cfg.id] = { cfg, cluster, markers: [], loaded: false };
+// Lazily fetch a category's data and build its markers the first time it's
+// needed. Concurrent calls share one fetch.
+function ensureLoaded(entry) {
+  if (entry.loaded) return Promise.resolve(entry);
+  if (entry.loading) return entry.loading;
+  entry.cluster = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 2 });
   entry.loading = (async () => {
     try {
-      const res = await fetch(`${BASE}data/${cfg.file}`);
+      const res = await fetch(`${BASE}data/${entry.cfg.file}`);
       if (res.ok) {
         for (const d of await res.json()) {
-          const dim = COLLECTABLE.has(cfg.id) && collected.has(ckey(cfg.id, d));
-          const marker = L.marker(savToLatLng(d.x, d.y), { icon: makeIcon(cfg.color, dim) });
-          marker.bindPopup(() => popupEl(cfg, d, marker));
+          const dim = COLLECTABLE.has(entry.cfg.id) && collected.has(ckey(entry.cfg.id, d));
+          const marker = L.marker(savToLatLng(d.x, d.y), { icon: makeIcon(entry.cfg.color, dim) });
+          marker.bindPopup(() => popupEl(entry.cfg, d, marker));
           entry.markers.push({ marker, data: d });
         }
       }
     } catch (err) {
-      console.warn(`No data for ${cfg.id}`, err);
+      console.warn(`No data for ${entry.cfg.id}`, err);
     }
     entry.loaded = true;
     entry.loading = null;
@@ -147,44 +148,100 @@ function ensureLoaded(cfg) {
   return entry.loading;
 }
 
-async function enableLayer(cfg) {
-  const entry = await ensureLoaded(cfg);
-  entry.cluster.addTo(map);
+// Add/remove the cluster and repopulate based on how many subs are enabled.
+async function refreshCategory(entry) {
+  if (entry.enabledSubs.size === 0) {
+    if (entry.cluster && entry.cluster._map) map.removeLayer(entry.cluster);
+    return;
+  }
+  await ensureLoaded(entry);
+  if (!entry.cluster._map) entry.cluster.addTo(map);
   populate(entry);
 }
-
-function disableLayer(cfg) {
-  const entry = registry[cfg.id];
-  if (entry && entry.cluster._map) map.removeLayer(entry.cluster);
-}
-
-const layerBoxes = []; // { cfg, box } for bulk actions
 
 function buildLayers() {
   const controls = document.getElementById('layer-controls');
   for (const cfg of LAYERS) {
-    const row = document.createElement('label');
-    row.className = 'layer-row';
-    row.innerHTML = `
-      <span class="swatch" style="background:${cfg.color}"></span>
-      <span class="layer-label">${cfg.label}</span>
-      <span class="layer-count">${cfg.count || ''}</span>
-      <span class="switch"><input type="checkbox" ${cfg.on ? 'checked' : ''} /><span class="track"></span></span>`;
-    const box = row.querySelector('input');
-    box.addEventListener('change', () => (box.checked ? enableLayer(cfg) : disableLayer(cfg)));
-    controls.appendChild(row);
-    layerBoxes.push({ cfg, box });
-    if (cfg.on) enableLayer(cfg);
+    const entry = (registry[cfg.id] = {
+      cfg, cluster: null, markers: [], loaded: false, loading: null,
+      enabledSubs: new Set(cfg.on ? cfg.subs.map((s) => s.sub) : []),
+    });
+    controls.appendChild(buildCategory(entry));
+    if (cfg.on) refreshCategory(entry);
   }
-  document.getElementById('layers-all').addEventListener('click', () => setAllLayers(true));
-  document.getElementById('layers-none').addEventListener('click', () => setAllLayers(false));
+  document.getElementById('layers-all').addEventListener('click', () => setAllCategories(true));
+  document.getElementById('layers-none').addEventListener('click', () => setAllCategories(false));
 }
 
-function setAllLayers(on) {
-  for (const { cfg, box } of layerBoxes) {
-    if (box.checked === on) continue;
-    box.checked = on;
-    if (on) enableLayer(cfg); else disableLayer(cfg);
+// Build one category: an expandable header (master switch) + a list of sub
+// toggles. Single-sub categories skip the sub list; their header row just
+// toggles the master.
+function buildCategory(entry) {
+  const { cfg } = entry;
+  const multi = cfg.subs.length > 1;
+  const cat = document.createElement('div');
+  cat.className = 'cat';
+  cat.innerHTML = `
+    <div class="cat-head">
+      <button class="cat-expand" type="button">
+        ${multi ? '<span class="cat-chev"></span>' : '<span class="cat-chev spacer"></span>'}
+        <span class="swatch" style="background:${cfg.color}"></span>
+        <span class="layer-label">${cfg.label}</span>
+        <span class="layer-count">${cfg.count}</span>
+      </button>
+      <span class="switch"><input type="checkbox" class="cat-master" ${cfg.on ? 'checked' : ''} /><span class="track"></span></span>
+    </div>
+    <div class="cat-subs"><div class="cat-subs-inner">
+      ${multi ? cfg.subs.map((s) => `
+        <label class="sub-row">
+          <span class="switch sm"><input type="checkbox" class="sub-box" data-sub="${s.sub}" ${cfg.on ? 'checked' : ''} /><span class="track"></span></span>
+          <span class="sub-label">${s.sub}</span>
+          <span class="layer-count">${s.count}</span>
+        </label>`).join('') : ''}
+    </div></div>`;
+
+  const master = cat.querySelector('.cat-master');
+  const subBoxes = [...cat.querySelectorAll('.sub-box')];
+  const expand = cat.querySelector('.cat-expand');
+
+  const syncMaster = () => {
+    const n = entry.enabledSubs.size;
+    master.checked = n > 0;
+    master.classList.toggle('partial', n > 0 && n < cfg.subs.length);
+  };
+
+  expand.addEventListener('click', () => {
+    if (multi) cat.classList.toggle('open');
+    else { master.checked = !master.checked; master.dispatchEvent(new Event('change')); }
+  });
+
+  master.addEventListener('change', () => {
+    const on = master.checked;
+    entry.enabledSubs = new Set(on ? cfg.subs.map((s) => s.sub) : []);
+    subBoxes.forEach((b) => (b.checked = on));
+    syncMaster();
+    refreshCategory(entry);
+  });
+
+  subBoxes.forEach((b) => b.addEventListener('change', () => {
+    if (b.checked) entry.enabledSubs.add(b.dataset.sub);
+    else entry.enabledSubs.delete(b.dataset.sub);
+    syncMaster();
+    refreshCategory(entry);
+  }));
+
+  entry.ui = { master, subBoxes, syncMaster };
+  return cat;
+}
+
+function setAllCategories(on) {
+  for (const id in registry) {
+    const entry = registry[id];
+    entry.enabledSubs = new Set(on ? entry.cfg.subs.map((s) => s.sub) : []);
+    entry.ui.master.checked = on;
+    entry.ui.master.classList.remove('partial');
+    entry.ui.subBoxes.forEach((b) => (b.checked = on));
+    refreshCategory(entry);
   }
 }
 
