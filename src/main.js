@@ -25,11 +25,11 @@ const BASE = import.meta.env.BASE_URL;
 
 const imageBounds = L.latLngBounds(IMAGE_BOUNDS[0], IMAGE_BOUNDS[1]);
 const baseImg = new Image();
-baseImg.onload = () => L.imageOverlay(`${BASE}map/base.png`, imageBounds).addTo(map);
+baseImg.onload = () => L.imageOverlay(`${BASE}map/base.webp`, imageBounds).addTo(map);
 baseImg.onerror = () => L.rectangle(imageBounds, {
   color: '#334155', weight: 1, fillColor: '#0f172a', fillOpacity: 1,
 }).addTo(map);
-baseImg.src = `${BASE}map/base.png`;
+baseImg.src = `${BASE}map/base.webp`;
 map.fitBounds(imageBounds);
 
 // ---- Coordinate readout ----------------------------------------------------
@@ -67,7 +67,7 @@ function saveCollected() {
 }
 
 // ---- Layers ----------------------------------------------------------------
-const registry = {}; // id -> { cfg, cluster, markers:[{marker,data}] }
+const registry = {}; // id -> { cfg, cluster, markers:[{marker,data}], loaded, loading }
 
 function makeIcon(color, dim) {
   return L.divIcon({
@@ -103,53 +103,73 @@ function popupEl(cfg, d, marker) {
   return el;
 }
 
+function populate(entry) {
+  const { cfg, cluster, markers } = entry;
+  cluster.clearLayers();
+  cluster.addLayers(markers.filter((m) => matches(cfg, m.data)).map((m) => m.marker));
+}
+
 function refilter() {
   for (const id in registry) {
-    const { cfg, cluster, markers } = registry[id];
-    if (!cluster._map) continue; // layer toggled off; nothing to refilter
-    cluster.clearLayers();
-    cluster.addLayers(markers.filter((m) => matches(cfg, m.data)).map((m) => m.marker));
+    const entry = registry[id];
+    if (!entry.loaded || !entry.cluster._map) continue; // not loaded or toggled off
+    populate(entry);
   }
 }
 
-async function loadLayer(cfg) {
+// Lazily fetch a layer's data and build its markers the first time it's needed.
+// Returns the registry entry once ready. Concurrent calls share one fetch.
+function ensureLoaded(cfg) {
+  let entry = registry[cfg.id];
+  if (entry) return entry.loading || Promise.resolve(entry);
+
   const cluster = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 2 });
-  const markers = [];
-  try {
-    const res = await fetch(`${BASE}data/${cfg.file}`);
-    if (res.ok) {
-      const arr = await res.json();
-      for (const d of arr) {
-        const dim = COLLECTABLE.has(cfg.id) && collected.has(ckey(cfg.id, d));
-        const marker = L.marker(savToLatLng(d.x, d.y), { icon: makeIcon(cfg.color, dim) });
-        marker.bindPopup(() => popupEl(cfg, d, marker));
-        markers.push({ marker, data: d });
+  entry = registry[cfg.id] = { cfg, cluster, markers: [], loaded: false };
+  entry.loading = (async () => {
+    try {
+      const res = await fetch(`${BASE}data/${cfg.file}`);
+      if (res.ok) {
+        for (const d of await res.json()) {
+          const dim = COLLECTABLE.has(cfg.id) && collected.has(ckey(cfg.id, d));
+          const marker = L.marker(savToLatLng(d.x, d.y), { icon: makeIcon(cfg.color, dim) });
+          marker.bindPopup(() => popupEl(cfg, d, marker));
+          entry.markers.push({ marker, data: d });
+        }
       }
+    } catch (err) {
+      console.warn(`No data for ${cfg.id}`, err);
     }
-  } catch (err) {
-    console.warn(`No data for ${cfg.id}`, err);
-  }
-  registry[cfg.id] = { cfg, cluster, markers };
-  if (cfg.on) { cluster.addTo(map); cluster.addLayers(markers.map((m) => m.marker)); }
-  return { cluster, count: markers.length };
+    entry.loaded = true;
+    entry.loading = null;
+    return entry;
+  })();
+  return entry.loading;
 }
 
-async function buildLayers() {
+async function enableLayer(cfg) {
+  const entry = await ensureLoaded(cfg);
+  entry.cluster.addTo(map);
+  populate(entry);
+}
+
+function disableLayer(cfg) {
+  const entry = registry[cfg.id];
+  if (entry && entry.cluster._map) map.removeLayer(entry.cluster);
+}
+
+function buildLayers() {
   const controls = document.getElementById('layer-controls');
   for (const cfg of LAYERS) {
-    const { cluster, count } = await loadLayer(cfg);
     const row = document.createElement('label');
     row.className = 'layer-row';
     row.innerHTML = `<input type="checkbox" ${cfg.on ? 'checked' : ''} />
       <span class="swatch" style="background:${cfg.color}"></span>
       <span class="layer-label">${cfg.label}</span>
-      <span class="layer-count">${count || ''}</span>`;
+      <span class="layer-count">${cfg.count || ''}</span>`;
     const box = row.querySelector('input');
-    box.addEventListener('change', () => {
-      if (box.checked) { cluster.addTo(map); refilter(); }
-      else map.removeLayer(cluster);
-    });
+    box.addEventListener('change', () => (box.checked ? enableLayer(cfg) : disableLayer(cfg)));
     controls.appendChild(row);
+    if (cfg.on) enableLayer(cfg);
   }
 }
 
