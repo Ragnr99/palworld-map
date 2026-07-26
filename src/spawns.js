@@ -71,9 +71,11 @@ function drawHeat(map, rec, showDay, showNight) {
   heatLayer = L.heatLayer(latlngs, HEAT_OPTS).addTo(map);
 }
 
-// Wire the picker UI.
+// Wire the picker UI. dayEl/nightEl/heatEl are chip <button>s toggled via an
+// `on` class; searchEl is the combobox input that fires 'change' on selection.
 export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, clearEl }) {
   pointsLayer.addTo(map);
+  const on = (el) => el.classList.contains('on');
 
   const refresh = async () => {
     clearAll(map);
@@ -81,13 +83,17 @@ export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, cl
     await ensureData(statusEl);
     const rec = cache[current];
     if (!rec) { statusEl.textContent = `No spawn data for ${current}`; return; }
-    const nDay = dayEl.checked ? rec.d.length : 0;
-    const nNight = nightEl.checked ? rec.n.length : 0;
-    if (heatEl.checked) drawHeat(map, rec, dayEl.checked, nightEl.checked);
-    else drawPoints(rec, dayEl.checked, nightEl.checked);
-    const mode = heatEl.checked ? 'heatmap' : 'points';
-    statusEl.textContent = `${current}: ${nDay + nNight} ${mode} (day ${rec.d.length} / night ${rec.n.length})`;
+    const showDay = on(dayEl), showNight = on(nightEl);
+    const n = (showDay ? rec.d.length : 0) + (showNight ? rec.n.length : 0);
+    if (on(heatEl)) drawHeat(map, rec, showDay, showNight);
+    else drawPoints(rec, showDay, showNight);
+    statusEl.textContent = `${current}: ${n} ${on(heatEl) ? 'heatmap' : 'points'} (day ${rec.d.length} / night ${rec.n.length})`;
   };
+
+  const toggleChip = (el) => { el.classList.toggle('on'); refresh(); };
+  dayEl.addEventListener('click', () => toggleChip(dayEl));
+  nightEl.addEventListener('click', () => toggleChip(nightEl));
+  heatEl.addEventListener('click', () => toggleChip(heatEl));
 
   searchEl.addEventListener('change', async () => {
     const v = searchEl.value.trim();
@@ -96,9 +102,6 @@ export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, cl
     if (!current && v) statusEl.textContent = `Unknown Pal: ${v}`;
     refresh();
   });
-  dayEl.addEventListener('change', refresh);
-  nightEl.addEventListener('change', refresh);
-  heatEl.addEventListener('change', refresh);
   clearEl.addEventListener('click', () => {
     current = null; searchEl.value = ''; clearAll(map); statusEl.textContent = '';
   });

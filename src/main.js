@@ -158,20 +158,44 @@ function disableLayer(cfg) {
   if (entry && entry.cluster._map) map.removeLayer(entry.cluster);
 }
 
+const layerBoxes = []; // { cfg, box } for bulk actions
+
 function buildLayers() {
   const controls = document.getElementById('layer-controls');
   for (const cfg of LAYERS) {
     const row = document.createElement('label');
     row.className = 'layer-row';
-    row.innerHTML = `<input type="checkbox" ${cfg.on ? 'checked' : ''} />
+    row.innerHTML = `
       <span class="swatch" style="background:${cfg.color}"></span>
       <span class="layer-label">${cfg.label}</span>
-      <span class="layer-count">${cfg.count || ''}</span>`;
+      <span class="layer-count">${cfg.count || ''}</span>
+      <span class="switch"><input type="checkbox" ${cfg.on ? 'checked' : ''} /><span class="track"></span></span>`;
     const box = row.querySelector('input');
     box.addEventListener('change', () => (box.checked ? enableLayer(cfg) : disableLayer(cfg)));
     controls.appendChild(row);
+    layerBoxes.push({ cfg, box });
     if (cfg.on) enableLayer(cfg);
   }
+  document.getElementById('layers-all').addEventListener('click', () => setAllLayers(true));
+  document.getElementById('layers-none').addEventListener('click', () => setAllLayers(false));
+}
+
+function setAllLayers(on) {
+  for (const { cfg, box } of layerBoxes) {
+    if (box.checked === on) continue;
+    box.checked = on;
+    if (on) enableLayer(cfg); else disableLayer(cfg);
+  }
+}
+
+function wireAccordions() {
+  document.querySelectorAll('[data-acc] .acc-head').forEach((head) => {
+    head.addEventListener('click', () => {
+      const acc = head.closest('.acc');
+      const open = acc.classList.toggle('open');
+      head.setAttribute('aria-expanded', String(open));
+    });
+  });
 }
 
 // ---- Mobile drawer ---------------------------------------------------------
@@ -210,16 +234,39 @@ function wireControls() {
 }
 
 async function initPals() {
+  const input = document.getElementById('pal-search');
   const list = document.getElementById('pal-list');
   const names = await loadPalIndex();
-  list.innerHTML = names.map((n) => `<option value="${n}">`).join('');
+
+  const render = (term) => {
+    const t = term.trim().toLowerCase();
+    const hits = (t ? names.filter((n) => n.toLowerCase().includes(t)) : names).slice(0, 60);
+    list.innerHTML = hits.length
+      ? hits.map((n) => `<div class="combo-opt" data-name="${n}">${n}</div>`).join('')
+      : '<div class="combo-empty">No Pal found</div>';
+  };
+  const open = () => { render(input.value); list.hidden = false; input.setAttribute('aria-expanded', 'true'); };
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+
+  input.addEventListener('focus', open);
+  input.addEventListener('input', open);
+  input.addEventListener('blur', () => setTimeout(close, 150)); // let a click land first
+  list.addEventListener('mousedown', (e) => {
+    const opt = e.target.closest('.combo-opt');
+    if (!opt) return;
+    e.preventDefault();
+    input.value = opt.dataset.name;
+    close();
+    input.dispatchEvent(new Event('change'));
+  });
+
   initSpawns({
     map,
     statusEl: document.getElementById('spawn-status'),
-    searchEl: document.getElementById('pal-search'),
-    dayEl: document.getElementById('spawn-day'),
-    nightEl: document.getElementById('spawn-night'),
-    heatEl: document.getElementById('spawn-heat'),
+    searchEl: input,
+    dayEl: document.querySelector('[data-spawn="day"]'),
+    nightEl: document.querySelector('[data-spawn="night"]'),
+    heatEl: document.querySelector('[data-spawn="heat"]'),
     clearEl: document.getElementById('spawn-clear'),
   });
 }
@@ -229,6 +276,7 @@ if (isCalibrationMode()) {
   addCalibrationLayer(map);
 } else {
   wireDrawer();
+  wireAccordions();
   wireControls();
   buildLayers();
   initPals();
