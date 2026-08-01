@@ -8,7 +8,7 @@ import './style.css';
 import { savToLatLng, latLngToSav, savToPaldex, IMAGE_BOUNDS } from './coords.js';
 import { LAYERS } from './layers.js';
 import { isCalibrationMode, addCalibrationLayer } from './calibration.js';
-import { initSpawns, loadPalIndex } from './spawns.js';
+import { initSpawns, loadPalIndex, loadPalArt, palArtTag } from './spawns.js';
 
 // ---- Map setup -------------------------------------------------------------
 const map = L.map('map', {
@@ -169,8 +169,23 @@ function buildLayers() {
     controls.appendChild(buildCategory(entry));
     if (cfg.on) refreshCategory(entry);
   }
-  document.getElementById('layers-all').addEventListener('click', () => setAllCategories(true));
-  document.getElementById('layers-none').addEventListener('click', () => setAllCategories(false));
+  const master = document.getElementById('layers-master');
+  master.addEventListener('change', () => setAllCategories(master.checked));
+  syncGlobalMaster();
+}
+
+// Keep the global switch honest: on when everything is on, off when nothing is,
+// and visibly partial in between, mirroring how each category behaves.
+function syncGlobalMaster() {
+  const master = document.getElementById('layers-master');
+  if (!master) return;
+  const ids = Object.keys(registry);
+  const full = ids.filter((id) => registry[id].enabledSubs.size === registry[id].cfg.subs.length).length;
+  const any = ids.filter((id) => registry[id].enabledSubs.size > 0).length;
+  master.checked = any > 0;
+  master.classList.toggle('partial', any > 0 && full < ids.length);
+  const count = document.getElementById('layers-master-count');
+  if (count) count.textContent = `${any}/${ids.length}`;
 }
 
 // Build one category: an expandable header (master switch) + a list of sub
@@ -220,6 +235,7 @@ function buildCategory(entry) {
     entry.enabledSubs = new Set(on ? cfg.subs.map((s) => s.sub) : []);
     subBoxes.forEach((b) => (b.checked = on));
     syncMaster();
+    syncGlobalMaster();
     refreshCategory(entry);
   });
 
@@ -227,6 +243,7 @@ function buildCategory(entry) {
     if (b.checked) entry.enabledSubs.add(b.dataset.sub);
     else entry.enabledSubs.delete(b.dataset.sub);
     syncMaster();
+    syncGlobalMaster();
     refreshCategory(entry);
   }));
 
@@ -243,6 +260,7 @@ function setAllCategories(on) {
     entry.ui.subBoxes.forEach((b) => (b.checked = on));
     refreshCategory(entry);
   }
+  syncGlobalMaster();
 }
 
 function wireAccordions() {
@@ -315,12 +333,14 @@ async function initPals() {
   const input = document.getElementById('pal-search');
   const list = document.getElementById('pal-list');
   const names = await loadPalIndex();
+  await loadPalArt();
 
   const render = (term) => {
     const t = term.trim().toLowerCase();
     const hits = (t ? names.filter((n) => n.toLowerCase().includes(t)) : names).slice(0, 60);
     list.innerHTML = hits.length
-      ? hits.map((n) => `<div class="combo-opt" data-name="${n}">${n}</div>`).join('')
+      ? hits.map((n) =>
+        `<div class="combo-opt" data-name="${n}">${palArtTag(n)}<span>${n}</span></div>`).join('')
       : '<div class="combo-empty">No Pal found</div>';
   };
   const open = () => { render(input.value); list.hidden = false; input.setAttribute('aria-expanded', 'true'); };

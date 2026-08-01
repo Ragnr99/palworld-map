@@ -33,6 +33,23 @@ export async function loadPalIndex() {
   return res.ok ? res.json() : [];
 }
 
+// Display name -> portrait filename, built by scripts/build-pal-art.js.
+let artMap = null;
+export async function loadPalArt() {
+  if (artMap) return artMap;
+  const res = await fetch(`${BASE}data/pal-art.json`).catch(() => null);
+  artMap = res && res.ok ? await res.json() : {};
+  return artMap;
+}
+
+/** <img> for a Pal, or '' if we have no art for it. */
+export function palArtTag(name, cls = 'pal-thumb') {
+  const file = artMap && artMap[name];
+  return file
+    ? `<img class="${cls}" src="${BASE}pal-images/${file}" alt="" loading="lazy" decoding="async" />`
+    : `<span class="${cls} empty"></span>`;
+}
+
 async function ensureData(status) {
   if (cache) return cache;
   if (status) status.textContent = 'Loading spawn data…';
@@ -54,16 +71,24 @@ function clearAll(map) {
   if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
 }
 
-function drawPoints(rec, showDay, showNight) {
-  const add = (pts, color) => {
+function drawPoints(rec, showDay, showNight, name) {
+  // One tooltip instance per point would be thousands of DOM nodes, so they're
+  // bound lazily: Leaflet only builds the element on hover.
+  const label = (when) =>
+    `<span class="spawn-tip">${palArtTag(name, 'pal-tip-img')}` +
+    `<span><b>${name}</b><i>${when}</i></span></span>`;
+
+  const add = (pts, color, when) => {
     for (const [x, y] of pts) {
       L.circleMarker(savToLatLng(x, y), {
         radius: 5, color: '#0b1120', weight: 1, fillColor: color, fillOpacity: 0.9,
-      }).addTo(pointsLayer);
+      })
+        .bindTooltip(() => label(when), { direction: 'top', offset: [0, -6], className: 'spawn-tooltip' })
+        .addTo(pointsLayer);
     }
   };
-  if (showDay) add(rec.d, DAY);
-  if (showNight) add(rec.n, NIGHT);
+  if (showDay) add(rec.d, DAY, 'Day spawn');
+  if (showNight) add(rec.n, NIGHT, 'Night spawn');
 }
 
 function drawHeat(map, rec, showDay, showNight) {
@@ -89,7 +114,7 @@ export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, cl
     const n = (showDay ? rec.d.length : 0) + (showNight ? rec.n.length : 0);
     const heat = on(heatEl);
     if (heat) drawHeat(map, rec, showDay, showNight);
-    else drawPoints(rec, showDay, showNight);
+    else drawPoints(rec, showDay, showNight, current);
     onHeatmap(heat);
     statusEl.textContent = `${current}: ${n} ${heat ? 'heatmap' : 'points'} (day ${rec.d.length} / night ${rec.n.length})`;
   };

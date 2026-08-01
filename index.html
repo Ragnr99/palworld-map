@@ -58,9 +58,13 @@
           </button>
           <div class="acc-body">
             <div class="acc-inner">
-              <div class="bulk">
-                <button id="layers-all" type="button">Show all</button>
-                <button id="layers-none" type="button">Hide all</button>
+              <div class="cat-head master-head">
+                <span class="cat-expand static">
+                  <span class="cat-chev spacer"></span>
+                  <span class="layer-label">All layers</span>
+                  <span class="layer-count" id="layers-master-count"></span>
+                </span>
+                <span class="switch"><input type="checkbox" id="layers-master" /><span class="track"></span></span>
               </div>
               <div id="layer-controls"></div>
             </div>
