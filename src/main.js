@@ -25,13 +25,53 @@ L.control.zoom({ position: 'topright' }).addTo(map);
 const BASE = import.meta.env.BASE_URL;
 
 const imageBounds = L.latLngBounds(IMAGE_BOUNDS[0], IMAGE_BOUNDS[1]);
+
+// Two separate worlds, not two views of one. paldb serves them as different
+// tile sets (image/map8 vs image/treemap8) and the marker coordinates we have
+// are Palpagos-only, which is why switching region parks the marker layers.
+const REGIONS = {
+  palpagos: { file: 'map/base.webp', label: 'Palpagos', markers: true },
+  tree: { file: 'map/tree.webp', label: 'World Tree', markers: false },
+};
+let region = 'palpagos';
+
+const baseOverlay = L.imageOverlay(`${BASE}${REGIONS.palpagos.file}`, imageBounds).addTo(map);
 const baseImg = new Image();
-baseImg.onload = () => L.imageOverlay(`${BASE}map/base.webp`, imageBounds).addTo(map);
 baseImg.onerror = () => L.rectangle(imageBounds, {
   color: '#334155', weight: 1, fillColor: '#0f172a', fillOpacity: 1,
 }).addTo(map);
-baseImg.src = `${BASE}map/base.webp`;
+baseImg.src = `${BASE}${REGIONS.palpagos.file}`;
 map.fitBounds(imageBounds);
+
+// Markers, spawns and the coordinate readout are all in Palpagos world space,
+// so on the World Tree they're hidden rather than shown wrong. paldb hasn't
+// published marker data for that region yet.
+function setRegion(next) {
+  if (next === region) return;
+  region = next;
+  const cfg = REGIONS[region];
+  baseOverlay.setUrl(`${BASE}${cfg.file}`);
+  map.fitBounds(imageBounds);
+
+  document.body.classList.toggle('no-markers', !cfg.markers);
+  for (const id in registry) {
+    const entry = registry[id];
+    if (!entry.cluster) continue;
+    if (cfg.markers) { if (entry.enabledSubs.size) entry.cluster.addTo(map); }
+    else if (entry.cluster._map) map.removeLayer(entry.cluster);
+  }
+  const note = document.getElementById('region-note');
+  if (note) note.hidden = cfg.markers;
+}
+
+function wireRegionSwitch() {
+  document.querySelectorAll('#map-seg button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#map-seg button').forEach((o) => o.classList.toggle('on', o === b));
+      setRegion(b.dataset.map);
+    });
+  });
+}
 
 // ---- Coordinate readout ----------------------------------------------------
 const readout = document.getElementById('coord-readout');
@@ -376,6 +416,7 @@ if (isCalibrationMode()) {
 } else {
   wireDrawer();
   wireAccordions();
+  wireRegionSwitch();
   wireControls();
   buildLayers();
   initPals();

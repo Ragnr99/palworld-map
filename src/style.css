@@ -304,3 +304,30 @@ body {
   padding: 6px 9px;
 }
 .leaflet-tooltip.spawn-tooltip::before { border-top-color: var(--border); }
+
+/* ---- Region switch --------------------------------------------------------
+   Palpagos and the World Tree are separate worlds with separate tile sets, so
+   the marker controls are dimmed rather than removed on the tree: they're still
+   there, they just have nothing to place until paldb publishes coordinates. */
+#map-seg { margin-bottom: 10px; }
+
+body.no-markers .acc:has(#layer-controls),
+body.no-markers .acc:has(#pal-combo),
+body.no-markers #region-seg,
+body.no-markers #coord-readout {
+  opacity: 0.4;
+  pointer-events: none;
+}
+#region-note { margin: -4px 0 10px; line-height: 1.4; }
+
+/* Credit line: the data isn't mine, so it says so in the app and not only in
+   the README nobody opens. */
+.credit {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  opacity: 0.8;
+}
+.credit a { color: var(--muted); text-decoration: underline; }
+.credit a:hover { color: var(--text); }

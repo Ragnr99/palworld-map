@@ -1,9 +1,15 @@
 # Palworld Interactive Map
 
-An interactive Palpagos map with toggleable layers, in the spirit of
-palworld.gg / paldb.cc. Fast travel, towers, alpha pals, dungeons, effigies,
-landmarks, NPCs, chests, eggs, foraging, fishing, ore, and salvage, each on its
-own switch, plus a per-Pal wild-spawn viewer.
+An interactive Palworld map with toggleable layers. Fast travel, towers, alpha
+pals, dungeons, effigies, landmarks, NPCs, chests, eggs, foraging, fishing, ore,
+and salvage, each on its own switch, plus a per-Pal wild-spawn viewer and a
+second map for the World Tree region.
+
+> **The map imagery and marker data are [paldb.cc](https://paldb.cc)'s work,**
+> not mine. Every one of the ~13,400 markers, both base maps, and the per-Pal
+> spawn clouds were sourced from their site. What's original here is the
+> front end: the layer system, the spawn viewer, the heatmap, the mobile
+> layout, and the coordinate transform work. See [Credits](#credits).
 
 Built with [Vite](https://vitejs.dev/) + [Leaflet](https://leafletjs.com/)
 (`CRS.Simple` image overlay) + marker clustering.
@@ -37,7 +43,10 @@ npm run dev
 | `src/calibration.js` | `?calibrate` transform-verification overlay. |
 | `public/data/*.json` | One file per category. Arrays of `{ name, x, y, meta }`. |
 | `public/data/spawns.json` | Per-Pal `{ d:[[x,y]…], n:[[x,y]…] }` spawn clouds. |
-| `public/map/base.png` | The base island image (the map8 texture). |
+| `public/map/base.webp` | Palpagos, stitched from paldb's `map8` tiles (2048px). |
+| `public/map/tree.webp` | World Tree, stitched from paldb's `treemap8` tiles (4096px). |
+| `scripts/fetch_treemap.py` | Rebuilds `tree.webp` from those tiles. |
+| `scripts/build-pal-art.js` | Copies Pal portraits in and writes `data/pal-art.json`. |
 
 ## Coordinate transform
 
@@ -71,3 +80,30 @@ format.
 - [ ] Spawn viewer as a density heatmap option
 - [ ] Pristine self-extraction of the data
 - [ ] Deploy as a portfolio-hub page
+
+
+## Credits
+
+Effectively all of the *data* here comes from **[paldb.cc](https://paldb.cc)**:
+
+| What | Where it came from |
+|------|--------------------|
+| ~13,400 markers across 13 layers | paldb's map payload |
+| Per-Pal day/night spawn clouds | paldb's paldex distribution data |
+| Palpagos base image | paldb `image/map8/` tiles, z2 (4x4 x 512px = 2048px) |
+| World Tree base image | paldb `image/treemap8/` tiles, z3 (8x8 x 512px = 4096px) |
+| World bounds / coordinate transform | derived from paldb's transform constants |
+
+Pal portraits come from the [Palworld Wiki](https://palworld.fandom.com).
+Palworld is by Pocketpair. This is an unofficial fan project, not affiliated
+with either, and it makes no money.
+
+### On map resolution
+
+Palpagos can't be sharpened: the game ships exactly one world-map texture,
+`T_Mainworld5_Combined_221005`, and its `.ubulk` is 2,793,472 bytes, which is
+precisely a BC1 mip chain over a 2048x2048 base. paldb's own tiles stop at the
+same 2048px (z3 and above 403). So 2048 is the ceiling from both sources.
+
+The World Tree is the exception: paldb publishes it one zoom level deeper, so
+that map is 4096px.
