@@ -408,6 +408,20 @@ async function initPals() {
     clearEl: document.getElementById('spawn-clear'),
     onHeatmap: setMarkersHiddenForHeat,
   });
+
+  // ?pal=Anubis preselects a Pal and shows its spawns. That's how the "Where to
+  // find" button on a Pal's page gets here. Matched case-insensitively so the
+  // link doesn't have to know the exact casing.
+  const wanted = new URLSearchParams(window.location.search).get('pal');
+  if (wanted) {
+    const match = names.find((n) => n.toLowerCase() === wanted.toLowerCase());
+    if (match) {
+      input.value = match;
+      input.dispatchEvent(new Event('change'));
+      // the spawn panel is what the visitor came for, so make sure it's open
+      document.querySelector('#sidebar .acc')?.classList.add('open');
+    }
+  }
 }
 
 // ---- Boot ------------------------------------------------------------------
