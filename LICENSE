@@ -19,23 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-## What this license covers
-
-The MIT license above applies to the code in this repository: the front end,
-the layer system, the spawn viewer, the coordinate transform, and the build
-scripts.
-
-It does NOT apply to the game data or imagery:
-
-- The marker data in `public/data/` was sourced from
-  [paldb.cc](https://paldb.cc) and belongs to them. It is included here so the
-  map runs; it is not mine to relicense. If paldb would like it removed, open
-  an issue and I will take it down.
-- No Palworld game assets are distributed in this repository. Base map imagery
-  is not included (see `public/map/README.md`) and `public/data/pal-art.json`
-  holds filenames only, not artwork.
-- Palworld is the property of Pocketpair, Inc. This is an unofficial,
-  non-commercial fan project with no affiliation or endorsement.

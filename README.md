@@ -98,6 +98,20 @@ Pal portraits come from the [Palworld Wiki](https://palworld.fandom.com).
 Palworld is by Pocketpair. This is an unofficial fan project, not affiliated
 with either, and it makes no money.
 
+## License and attribution
+
+The [MIT license](LICENSE) covers the *code*: the front end, the layer system,
+the spawn viewer, the coordinate transform, and the build scripts.
+
+It does not cover the game data, which isn't mine to relicense:
+
+- The marker data in `public/data/` came from [paldb.cc](https://paldb.cc) and
+  belongs to them. It ships here so the map runs. If paldb would like it
+  removed, open an issue and I'll take it down.
+- No Palworld assets are redistributed here. Base map imagery is not included
+  (see [`public/map/README.md`](public/map/README.md)), and
+  `public/data/pal-art.json` holds filenames only, not artwork.
+
 ### On map resolution
 
 Palpagos can't be sharpened: the game ships exactly one world-map texture,
