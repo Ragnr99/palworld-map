@@ -189,6 +189,8 @@ body {
 
 .pw-popup-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
 .pw-popup-coord { margin-top: 6px; font-size: 11px; color: #64748b; font-family: ui-monospace, monospace; }
+.pw-popup-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+.pw-popup-link:hover { text-decoration: underline; }
 
 /* Calibration harness */
 .calib-cross {

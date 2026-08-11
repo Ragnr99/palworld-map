@@ -99,7 +99,7 @@ function matches(cfg, d) {
 }
 
 // ---- Collected (effigies / chests) -----------------------------------------
-const COLLECTABLE = new Set(['effigies', 'chests']);
+const COLLECTABLE = new Set(['effigies', 'chests', 'notes']);
 const COLLECT_KEY = 'pw-collected';
 const collected = new Set(JSON.parse(localStorage.getItem(COLLECT_KEY) || '[]'));
 const ckey = (id, d) => `${id}:${d.x}:${d.y}`;
@@ -122,8 +122,13 @@ function makeIcon(color, dim) {
 function popupEl(cfg, d, marker) {
   const el = document.createElement('div');
   el.className = 'pw-popup';
+  // `page` is a paldb article slug rather than a fact about the marker, so it
+  // renders as the link it is - the journal notes are worth reading, and the
+  // point of marking one is knowing you already did.
   const meta = d.meta
-    ? Object.entries(d.meta).map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`).join('')
+    ? Object.entries(d.meta).map(([k, v]) => (k === 'page'
+      ? `<div><a class="pw-popup-link" href="https://paldb.cc/en/${v}" target="_blank" rel="noopener noreferrer">Read it on paldb &rarr;</a></div>`
+      : `<div><b>${k}:</b> ${v}</div>`)).join('')
     : '';
   el.innerHTML = `<div class="pw-popup-title" style="color:${cfg.color}">${d.name || cfg.label}</div>
     ${meta}<div class="pw-popup-coord">x ${Math.round(d.x)}, y ${Math.round(d.y)}</div>`;

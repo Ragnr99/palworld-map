@@ -18,6 +18,19 @@ export const LAYERS = [
       { sub: 'Herbil Effigy', count: 30 }, { sub: 'Tanzee Effigy', count: 30 }, { sub: 'Depresso Effigy', count: 30 },
       { sub: 'Pengullet Effigy', count: 30 }, { sub: 'Lamball Effigy', count: 30 }, { sub: 'Relaxaurus Effigy', count: 4 },
       { sub: 'Lunaris Effigy', count: 4 }, { sub: 'Yakumo Effigy', count: 2 }] },
+  // The game calls these Journals; players call them notes or notebooks. 55 on
+  // Palpagos. The other 9 are inside the World Tree, which is a separate map
+  // with its own coordinate space - plotting one here would put it in the sea.
+  // Paper white, not the gold the overlay uses for the same thing: three
+  // layers here are already yellow-ish and a fourth is a marker you can't pick
+  // out. Every dot has a black border, so white is the one hue still free.
+  { id: 'notes', label: 'Journal Notes', color: '#f8fafc', file: 'notes.json', on: false, count: 55,
+    subs: [
+      { sub: "Castaway's Journal", count: 23 }, { sub: "Auri's Diary", count: 6 },
+      { sub: "Bjorn Seligsson's Diary", count: 5 }, { sub: "Saya Kurosaki's Diary", count: 5 },
+      { sub: "Zoe Rayne's Diary", count: 5 }, { sub: "Lily Everhart's Diary", count: 3 },
+      { sub: "Marcus Dryden's Diary", count: 3 }, { sub: "Victor Ashford's Diary", count: 3 },
+      { sub: "Axel Travers' Diary", count: 1 }, { sub: 'Loose note', count: 1 }] },
   { id: 'landmarks', label: 'Landmarks', color: '#fbbf24', file: 'landmarks.json', on: false, count: 179,
     subs: [{ sub: 'Ancient Ruin', count: 105 }, { sub: 'City', count: 74 }] },
   { id: 'npcs', label: 'NPCs', color: '#38bdf8', file: 'npcs.json', on: false, count: 417,

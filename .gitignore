@@ -9,6 +9,7 @@ public/map/tiles/
 *.pak
 
 # scraping/extraction intermediates
+build/
 *.webp
 paldb_map.*
 map_data.js
