@@ -313,10 +313,11 @@ body {
    there, they just have nothing to place until paldb publishes coordinates. */
 #map-seg { margin-bottom: 10px; }
 
-body.no-markers .acc:has(#layer-controls),
-body.no-markers .acc:has(#pal-combo),
-body.no-markers #region-seg,
-body.no-markers #coord-readout {
+/* World Tree: it has its own markers, so the layer list stays live, but no
+   wild-spawn clouds are published for it and Base/DLC is a Palpagos split, so
+   those two controls grey out instead of returning nothing. */
+body.no-spawns .acc:has(#pal-combo),
+body.no-spawns #region-seg {
   opacity: 0.4;
   pointer-events: none;
 }

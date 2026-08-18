@@ -5,7 +5,10 @@ disagree about where a note is:
 
     public/data/notes.json    this site's layer format  {name, x, y, sub, meta}
     build/journals.json       palworld-overlay's format, to copy into its data/
-    build/journals_tree.json  the World Tree's nine, which nothing renders yet
+    build/journals_tree.json  the World Tree's nine, for the overlay
+
+The map's own copy of those nine comes from scripts/fetch_tree_markers.py,
+which pulls every World Tree marker out of the same payload.
 
     python scripts/fetch_notes.py
 

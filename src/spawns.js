@@ -66,6 +66,15 @@ function selectedPoints(rec, showDay, showNight) {
   return pts;
 }
 
+// Set by initSpawns so the map can park the viewer when it switches to a world
+// with no spawn data (the tree). No-op before that.
+let resetCurrent = () => {};
+
+/** Drop the current selection and everything it drew. */
+export function resetSpawns() {
+  resetCurrent();
+}
+
 function clearAll(map) {
   pointsLayer.clearLayers();
   if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
@@ -131,7 +140,9 @@ export function initSpawns({ map, statusEl, searchEl, dayEl, nightEl, heatEl, cl
     if (!current && v) statusEl.textContent = `Unknown Pal: ${v}`;
     refresh();
   });
-  clearEl.addEventListener('click', () => {
+  const reset = () => {
     current = null; searchEl.value = ''; clearAll(map); statusEl.textContent = ''; onHeatmap(false);
-  });
+  };
+  clearEl.addEventListener('click', reset);
+  resetCurrent = reset;
 }

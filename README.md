@@ -3,10 +3,11 @@
 An interactive Palworld map with toggleable layers. Fast travel, towers, alpha
 pals, dungeons, effigies, journal notes, landmarks, NPCs, chests, eggs,
 foraging, fishing, ore, and salvage, each on its own switch, plus a per-Pal
-wild-spawn viewer and a second map for the World Tree region.
+wild-spawn viewer. Two maps: Palpagos, and the World Tree with its own 379
+markers on its own coordinate space.
 
 > **The map imagery and marker data are [paldb.cc](https://paldb.cc)'s work,**
-> not mine. Every one of the ~13,460 markers, both base maps, and the per-Pal
+> not mine. Every one of the 13,842 markers, both base maps, and the per-Pal
 > spawn clouds were sourced from their site. What's original here is the
 > front end: the layer system, the spawn viewer, the heatmap, the mobile
 > layout, and the coordinate transform work. See [Credits](#credits).
@@ -23,7 +24,10 @@ npm run dev
 
 ## Features
 
-- **14 toggleable marker layers** (~13,460 markers) with clustering.
+- **14 toggleable marker layers** (13,463 markers) with clustering.
+- **Two worlds**: Palpagos and the World Tree, each with its own base image,
+  coordinate bounds and layer catalog (13 layers, 379 markers on the tree).
+  `?map=tree` links straight to it.
 - **Pal spawns**: pick any Pal to see its day/night wild-spawn point clouds
   (lazy-loaded, from the game's paldex distribution data).
 - **Journal notes**: all 55 readable notes on Palpagos, split into the ten
@@ -38,26 +42,38 @@ npm run dev
 
 | Piece | What it does |
 |-------|--------------|
-| `src/coords.js` | Converts raw world (sav) coords in cm to on-map position. Bounds authenticated from paldb; transform verified against real marker data. |
-| `src/layers.js` | The catalog of marker layers. Add/remove a category in one place. |
+| `src/coords.js` | Converts raw world (sav) coords in cm to on-map position, per world. Bounds authenticated from paldb; transform verified against real marker data. |
+| `src/layers.js` | The catalog of marker layers, one per world, plus what each world is made of (`WORLD_MAPS`). Add/remove a category in one place. |
 | `src/spawns.js` | The per-Pal wild-spawn viewer (lazy loads `spawns.json`). |
 | `src/main.js` | Builds the map, loads layers, wires search / region / collected. |
 | `src/calibration.js` | `?calibrate` transform-verification overlay. |
 | `public/data/*.json` | One file per category. Arrays of `{ name, x, y, meta }`. |
+| `public/data/tree/*.json` | The same, for the World Tree's own layers. |
 | `public/data/spawns.json` | Per-Pal `{ d:[[x,y]…], n:[[x,y]…] }` spawn clouds. |
 | `public/map/base.webp` | Palpagos, stitched from paldb's `map8` tiles (2048px). |
 | `public/map/tree.webp` | World Tree, stitched from paldb's `treemap8` tiles (4096px). |
 | `scripts/fetch_treemap.py` | Rebuilds `tree.webp` from those tiles. |
+| `scripts/fetch_tree_markers.py` | Rebuilds `public/data/tree/` from paldb's treemap payload, re-checking the tree's coordinate bounds against it. |
 | `scripts/fetch_notes.py` | Rebuilds `notes.json` from paldb's payload, and the same data in [palworld-overlay](https://github.com/Ragnr99/palworld-overlay)'s format so the two can't drift. Checks itself against three published coordinates. |
 | `scripts/build-pal-art.js` | Copies Pal portraits in and writes `data/pal-art.json`. |
 
 ## Coordinate transform
 
 Markers store raw world ("sav") coordinates in centimeters. `coords.js`
-normalizes them against the base texture's world bounds
-(`min -1099400/-724400`, `max 349400/724400`, 8192px) and maps to the Leaflet
+normalizes them against their world's bounds and maps to the Leaflet
 `CRS.Simple` plane. Orientation: `+x` north, `+y` east. Verified by plotting the
 full dataset, every marker lands on the correct landmass.
+
+| World | Bounds (sav) |
+|-------|--------------|
+| Palpagos | `min -1099400/-724400`, `max 349400/724400` |
+| World Tree | `min 347352/-818197`, `max 689149/-476400` |
+
+The World Tree is a separate coordinate space, not a corner of Palpagos: its
+markers plotted with the island's bounds land in the sea. Both rectangles are
+paldb's own `config.landScapeRealPositionMin/Max`, and
+`scripts/fetch_tree_markers.py` re-reads the tree's on every run rather than
+trusting the copy in the code.
 
 `savToPaldex` converts the same coordinates into the numbers the game prints on
 its own map, for the hover readout:
@@ -94,6 +110,7 @@ format.
 - [x] Search + marker filtering
 - [x] Collected toggles for effigies / chests / notes (localStorage)
 - [x] Base / DLC region filter
+- [x] World Tree marker layers (effigies, notes, chests, and the rest)
 - [ ] Spawn viewer as a density heatmap option
 - [ ] Pristine self-extraction of the data
 - [ ] Deploy as a portfolio-hub page
@@ -105,11 +122,12 @@ Effectively all of the *data* here comes from **[paldb.cc](https://paldb.cc)**:
 
 | What | Where it came from |
 |------|--------------------|
-| ~13,460 markers across 14 layers | paldb's map payload |
+| 13,463 markers across 14 layers | paldb's map payload |
+| 379 World Tree markers across 13 layers | paldb's treemap payload, via `scripts/fetch_tree_markers.py` |
 | The 55 journal-note positions and their article pages | paldb's map payload, via `scripts/fetch_notes.py` |
 | Per-Pal day/night spawn clouds | paldb's paldex distribution data |
 | Palpagos base image | paldb `image/map8/` tiles, z2 (4x4 x 512px = 2048px) |
-| World Tree base image | paldb `image/treemap8/` tiles, z3 (8x8 x 512px = 4096px) |
+| World Tree base image | paldb `image/treemap8/` tiles, z3 (8x8 x 512px = 4096px), the twelve tiles z3 never serves filled from z2 |
 | World bounds / coordinate transform | derived from paldb's transform constants |
 
 Pal portraits come from the [Palworld Wiki](https://palworld.fandom.com).
@@ -138,4 +156,7 @@ precisely a BC1 mip chain over a 2048x2048 base. paldb's own tiles stop at the
 same 2048px (z3 and above 403). So 2048 is the ceiling from both sources.
 
 The World Tree is the exception: paldb publishes it one zoom level deeper, so
-that map is 4096px.
+that map is 4096px. Twelve of its 64 z3 tiles are permanently 403 and some of
+them cover real terrain, so `fetch_treemap.py` lays the complete z2 grid down
+first, upscaled, and pastes the z3 tiles over it. The gaps end up at half
+resolution rather than as black holes with markers floating in them.

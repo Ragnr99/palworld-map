@@ -6,9 +6,9 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import './style.css';
 
 import { savToLatLng, latLngToSav, savToPaldex, IMAGE_BOUNDS } from './coords.js';
-import { LAYERS } from './layers.js';
+import { WORLD_MAPS } from './layers.js';
 import { isCalibrationMode, addCalibrationLayer } from './calibration.js';
-import { initSpawns, loadPalIndex, loadPalArt, palArtTag } from './spawns.js';
+import { initSpawns, resetSpawns, loadPalIndex, loadPalArt, palArtTag } from './spawns.js';
 
 // ---- Map setup -------------------------------------------------------------
 const map = L.map('map', {
@@ -27,59 +27,81 @@ const BASE = import.meta.env.BASE_URL;
 const imageBounds = L.latLngBounds(IMAGE_BOUNDS[0], IMAGE_BOUNDS[1]);
 
 // Two separate worlds, not two views of one. paldb serves them as different
-// tile sets (image/map8 vs image/treemap8) and the marker coordinates we have
-// are Palpagos-only, which is why switching region parks the marker layers.
-const REGIONS = {
-  palpagos: { file: 'map/base.webp', label: 'Palpagos', markers: true },
-  tree: { file: 'map/tree.webp', label: 'World Tree', markers: false },
-};
-let region = 'palpagos';
+// tile sets (image/map8 vs image/treemap8), with different coordinate bounds
+// and their own marker payloads, so each world owns a base image, a layer
+// catalog and a data folder (WORLD_MAPS in layers.js). Switching swaps all
+// three, and each world keeps its own registry so its markers survive a round
+// trip instead of being rebuilt.
+let world = 'palpagos';
+const worlds = {}; // id -> { cfg, registry, root }
+const active = () => worlds[world];
 
-const baseOverlay = L.imageOverlay(`${BASE}${REGIONS.palpagos.file}`, imageBounds).addTo(map);
+const baseOverlay = L.imageOverlay(`${BASE}${WORLD_MAPS[world].image}`, imageBounds).addTo(map);
 const baseImg = new Image();
 baseImg.onerror = () => L.rectangle(imageBounds, {
   color: '#334155', weight: 1, fillColor: '#0f172a', fillOpacity: 1,
 }).addTo(map);
-baseImg.src = `${BASE}${REGIONS.palpagos.file}`;
+baseImg.src = `${BASE}${WORLD_MAPS[world].image}`;
 map.fitBounds(imageBounds);
 
-// Markers, spawns and the coordinate readout are all in Palpagos world space,
-// so on the World Tree they're hidden rather than shown wrong. paldb hasn't
-// published marker data for that region yet.
-function setRegion(next) {
-  if (next === region) return;
-  region = next;
-  const cfg = REGIONS[region];
-  baseOverlay.setUrl(`${BASE}${cfg.file}`);
+// The Pal spawn viewer and the Base/DLC filter stay Palpagos-only: no spawn
+// data is published for the tree, and the DLC rectangle is a Palpagos
+// rectangle. Both are parked on the tree rather than shown wrong.
+function setWorld(next) {
+  if (next === world || !WORLD_MAPS[next]) return;
+  for (const id in active().registry) {
+    const { cluster } = active().registry[id];
+    if (cluster && cluster._map) map.removeLayer(cluster);
+  }
+  active().root.hidden = true;
+
+  world = next;
+  const cfg = WORLD_MAPS[world];
+  active().root.hidden = false;
+  baseOverlay.setUrl(`${BASE}${cfg.image}`);
   map.fitBounds(imageBounds);
 
-  document.body.classList.toggle('no-markers', !cfg.markers);
-  for (const id in registry) {
-    const entry = registry[id];
-    if (!entry.cluster) continue;
-    if (cfg.markers) { if (entry.enabledSubs.size) entry.cluster.addTo(map); }
-    else if (entry.cluster._map) map.removeLayer(entry.cluster);
-  }
+  document.body.classList.toggle('no-spawns', !cfg.spawns);
+  if (!cfg.spawns) resetSpawns();
+  for (const id in active().registry) refreshCategory(active().registry[id]);
+  syncGlobalMaster();
+
   const note = document.getElementById('region-note');
-  if (note) note.hidden = cfg.markers;
+  if (note) note.hidden = cfg.spawns;
 }
 
-function wireRegionSwitch() {
+function wireWorldSwitch() {
   document.querySelectorAll('#map-seg button').forEach((b) => {
     b.addEventListener('click', () => {
       document.querySelectorAll('#map-seg button').forEach((o) => o.classList.toggle('on', o === b));
-      setRegion(b.dataset.map);
+      setWorld(b.dataset.map);
     });
   });
+}
+
+// ?map=tree opens straight on the World Tree, so a link can point at either map
+// (the same way ?pal= points at a Pal's spawns).
+function applyWorldParam() {
+  const wanted = new URLSearchParams(window.location.search).get('map');
+  if (!wanted || !WORLD_MAPS[wanted] || wanted === world) return;
+  document.querySelectorAll('#map-seg button')
+    .forEach((b) => b.classList.toggle('on', b.dataset.map === wanted));
+  setWorld(wanted);
 }
 
 // ---- Coordinate readout ----------------------------------------------------
 const readout = document.getElementById('coord-readout');
 map.on('mousemove', (e) => {
-  const sav = latLngToSav(e.latlng.lat, e.latlng.lng);
-  const p = savToPaldex(sav.x, sav.y);
-  readout.textContent =
-    `world x: ${Math.round(sav.x)}  y: ${Math.round(sav.y)}   ·   map ${Math.round(p.x)}, ${Math.round(p.y)}`;
+  const sav = latLngToSav(e.latlng.lat, e.latlng.lng, world);
+  const parts = [`world x: ${Math.round(sav.x)}  y: ${Math.round(sav.y)}`];
+  // The in-game grid readout is the base game's. The tree has its own, so it
+  // gets the raw world coordinates alone rather than a number that reads
+  // plausible and isn't.
+  if (WORLD_MAPS[world].paldexCoords) {
+    const p = savToPaldex(sav.x, sav.y);
+    parts.push(`map ${Math.round(p.x)}, ${Math.round(p.y)}`);
+  }
+  readout.textContent = parts.join('   ·   ');
 });
 
 // ---- Filter state ----------------------------------------------------------
@@ -92,8 +114,10 @@ function inBase(d) {
 
 const state = { search: '', region: 'all' };
 function matches(cfg, d) {
-  if (state.region === 'base' && !inBase(d)) return false;
-  if (state.region === 'dlc' && inBase(d)) return false;
+  if (WORLD_MAPS[world].regionFilter) {
+    if (state.region === 'base' && !inBase(d)) return false;
+    if (state.region === 'dlc' && inBase(d)) return false;
+  }
   if (state.search && !(d.name || '').toLowerCase().includes(state.search)) return false;
   return true;
 }
@@ -108,7 +132,8 @@ function saveCollected() {
 }
 
 // ---- Layers ----------------------------------------------------------------
-const registry = {}; // id -> { cfg, cluster, markers, loaded, loading, enabledSubs:Set, ui }
+// Each world keeps its own registry, id -> { cfg, world, cluster, markers,
+// loaded, loading, enabledSubs:Set, ui }.
 
 function makeIcon(color, dim) {
   return L.divIcon({
@@ -160,8 +185,8 @@ function populate(entry) {
 }
 
 function refilter() {
-  for (const id in registry) {
-    const entry = registry[id];
+  for (const id in active().registry) {
+    const entry = active().registry[id];
     if (entry.loaded && entry.cluster && entry.cluster._map) populate(entry);
   }
 }
@@ -174,11 +199,11 @@ function ensureLoaded(entry) {
   entry.cluster = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 2 });
   entry.loading = (async () => {
     try {
-      const res = await fetch(`${BASE}data/${entry.cfg.file}`);
+      const res = await fetch(`${BASE}${WORLD_MAPS[entry.world].dataDir}${entry.cfg.file}`);
       if (res.ok) {
         for (const d of await res.json()) {
           const dim = COLLECTABLE.has(entry.cfg.id) && collected.has(ckey(entry.cfg.id, d));
-          const marker = L.marker(savToLatLng(d.x, d.y), { icon: makeIcon(entry.cfg.color, dim) });
+          const marker = L.marker(savToLatLng(d.x, d.y, entry.world), { icon: makeIcon(entry.cfg.color, dim) });
           marker.bindPopup(() => popupEl(entry.cfg, d, marker));
           entry.markers.push({ marker, data: d });
         }
@@ -193,27 +218,41 @@ function ensureLoaded(entry) {
   return entry.loading;
 }
 
-// Add/remove the cluster and repopulate based on how many subs are enabled.
+// Add/remove the cluster and repopulate based on how many subs are enabled. A
+// layer that belongs to the world not on screen never touches the map.
 async function refreshCategory(entry) {
-  if (entry.enabledSubs.size === 0) {
+  if (entry.world !== world || entry.enabledSubs.size === 0) {
     if (entry.cluster && entry.cluster._map) map.removeLayer(entry.cluster);
     return;
   }
   await ensureLoaded(entry);
+  if (entry.world !== world) return; // switched worlds while the data was in flight
   if (!entry.cluster._map) entry.cluster.addTo(map);
   populate(entry);
 }
 
-function buildLayers() {
+// Build every world's catalog up front - it's DOM only, no data - and show the
+// one on screen. Nothing is fetched for a world until it is the active one and
+// a layer on it is enabled.
+function buildWorlds() {
   const controls = document.getElementById('layer-controls');
-  for (const cfg of LAYERS) {
-    const entry = (registry[cfg.id] = {
-      cfg, cluster: null, markers: [], loaded: false, loading: null,
-      enabledSubs: new Set(cfg.on ? cfg.subs.map((s) => s.sub) : []),
-    });
-    controls.appendChild(buildCategory(entry));
-    if (cfg.on) refreshCategory(entry);
+  for (const id in WORLD_MAPS) {
+    const root = document.createElement('div');
+    root.className = 'world-layers';
+    root.hidden = id !== world;
+    const registry = {};
+    for (const cfg of WORLD_MAPS[id].layers) {
+      const entry = (registry[cfg.id] = {
+        cfg, world: id, cluster: null, markers: [], loaded: false, loading: null,
+        enabledSubs: new Set(cfg.on ? cfg.subs.map((s) => s.sub) : []),
+      });
+      root.appendChild(buildCategory(entry));
+    }
+    controls.appendChild(root);
+    worlds[id] = { cfg: WORLD_MAPS[id], registry, root };
   }
+  for (const id in active().registry) refreshCategory(active().registry[id]);
+
   const master = document.getElementById('layers-master');
   master.addEventListener('change', () => setAllCategories(master.checked));
   syncGlobalMaster();
@@ -224,6 +263,7 @@ function buildLayers() {
 function syncGlobalMaster() {
   const master = document.getElementById('layers-master');
   if (!master) return;
+  const { registry } = active();
   const ids = Object.keys(registry);
   const full = ids.filter((id) => registry[id].enabledSubs.size === registry[id].cfg.subs.length).length;
   const any = ids.filter((id) => registry[id].enabledSubs.size > 0).length;
@@ -297,8 +337,8 @@ function buildCategory(entry) {
 }
 
 function setAllCategories(on) {
-  for (const id in registry) {
-    const entry = registry[id];
+  for (const id in active().registry) {
+    const entry = active().registry[id];
     entry.enabledSubs = new Set(on ? entry.cfg.subs.map((s) => s.sub) : []);
     entry.ui.master.checked = on;
     entry.ui.master.classList.remove('partial');
@@ -353,22 +393,24 @@ function wireControls() {
   });
 }
 
-// While a spawn heatmap is active, hide the marker clusters so the density
-// reads clearly; restore exactly the ones that were showing when it turns off.
+// While a spawn heatmap is on, hide the marker clusters so the density reads
+// clearly; restore exactly the ones that were showing when it turns off. The
+// clusters themselves are held, not their ids: the two worlds share layer ids,
+// and a heatmap that outlived a world switch would otherwise restore the wrong
+// map's layers.
 let heatHidden = null;
-function setMarkersHiddenForHeat(active) {
-  if (active) {
+function setMarkersHiddenForHeat(on) {
+  if (on) {
     if (heatHidden) return; // already hidden
     heatHidden = [];
-    for (const id in registry) {
-      const e = registry[id];
-      if (e.cluster && e.cluster._map) { heatHidden.push(id); map.removeLayer(e.cluster); }
+    for (const id in active().registry) {
+      const e = active().registry[id];
+      if (e.cluster && e.cluster._map) { heatHidden.push(e); map.removeLayer(e.cluster); }
     }
   } else {
     if (!heatHidden) return;
-    for (const id of heatHidden) {
-      const e = registry[id];
-      if (e && e.cluster) e.cluster.addTo(map);
+    for (const e of heatHidden) {
+      if (e.world === world && e.cluster) e.cluster.addTo(map);
     }
     heatHidden = null;
   }
@@ -435,8 +477,9 @@ if (isCalibrationMode()) {
 } else {
   wireDrawer();
   wireAccordions();
-  wireRegionSwitch();
+  wireWorldSwitch();
   wireControls();
-  buildLayers();
+  buildWorlds();
+  applyWorldParam();
   initPals();
 }
